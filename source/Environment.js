@@ -292,8 +292,8 @@ Javathcript.Environment = (function() {
     var bind_names = [];
     var bind_expressions = [];
     for (var i = 0; i < binds_count; ++i) {
-      bind_names.push(bindings[0]);
-      bind_expressions.push(bindings[1]);
+      bind_names.push(bindings[i][0]);
+      bind_expressions.push(bindings[i][1]);
     }
     this["_valueArray"](bind_expressions, function(bind_expressions) {
       for (var i = 0; i < binds_count; ++i) {
@@ -309,8 +309,8 @@ Javathcript.Environment = (function() {
     var bind_names = [];
     var bind_expressions = [];
     for (var i = 0; i < binds_count; ++i) {
-      bind_names.push(bindings[0]);
-      bind_expressions.push(bindings[1]);
+      bind_names.push(bindings[i][0]);
+      bind_expressions.push(bindings[i][1]);
     }
     letScope["_valueArray"](bind_expressions, function(bind_expressions) {
       for (var i = 0; i < binds_count; ++i) {
