@@ -1,5 +1,5 @@
 var Environment = (function() {
-	
+	var LAMBDA_SIGN = "\u03bb";
 	var Nil = [];
 	
 	function buildStringRep(exp, result) {
@@ -19,7 +19,7 @@ var Environment = (function() {
 	}
 	
 	function stringify(exp) {
-		return buildStringRep(exp).join(" ");
+		return buildStringRep(exp).join(" ").replace(/(\() | (\))/g, '$1$2');
 	}
 	
 	function bool(b) {
@@ -71,76 +71,7 @@ var Environment = (function() {
 		}
 		return into;
 	}
-	
-	var globalScope = null;
-	
-	function Environment() {
-		globalScope = this;
-	}
-	
-	Environment.prototype["quote"] = function(a) {
-		return a;
-	};
-	
-	Environment.prototype["car"] = function(args) {
-		var item = this["_value"](args);
-		if (typeof(item) == 'string') {
-			return item.substring(0, 1);
-		}
-		return item[0];
-	};
-	
-	
-	Environment.prototype["cdr"] = function(args) {
-		var val = this["_value"](args).slice();
-		if (val.substring) {
-			return val.substring(1);
-		}
-		val.shift();
-		return val;
-	},
-	
-	Environment.prototype["equal"] = function(a, b) {
-		var a = this["_value"](a);
-		var b = this["_value"](b);
-		return equal(a, b) ? "t" : Nil;
-	};
-	
-	Environment.prototype["cons"] = function(a, b) {
-		var a = this["_value"](a);
-		var b = this["_value"](b);
-		
-		if (typeof(a) == 'string' && typeof(b) == 'string') {
-			return a+b;
-		}
-		
-		b = b.slice();
-		b.unshift(a);
-		return b;
-	};
-	
-	Environment.prototype["concat"] = function() {
-		var args = this["_valueArray"](arguments);
-		var result = args.shift();
-		if (result instanceof Array) {
-			return Array.prototype.concat.apply(result, args);
-		}
-		return result + args.join("");
-	};
-	
-	Environment.prototype["atom"] = function(a) {
-		return bool( this["_value"](a) instanceof Atom );
-	};
-	
-	Environment.prototype["cond"] = function() {
-		for (var i = 0; i < arguments.length; ++i) {
-			var condition = this["_value"](arguments[i][0]);
-			if (equal(condition, Nil) == false) {
-				return this["_value"](arguments[i][1]);
-			}
-		}
-	};
-	
+
 	function addNonGlobalsFromScope(into, merge) {
 		for (var x in merge) {
 			if (merge[x] != globalScope[x]) {
@@ -148,48 +79,7 @@ var Environment = (function() {
 			}
 		}
 	}
-	
-	Environment.prototype["lambda"] = function(variables, expression) {
-		// scope when function is defined
-		var defScopeNonglobals = {};
-		addNonGlobalsFromScope(defScopeNonglobals, this);
-		
-		var func = function() {
-			// scope when function is called
-			var funcScope = newScope(this);
-			
-			// add all nonglobal values into this funcscope
-			mergeScope(funcScope, defScopeNonglobals);
-			
-			var args = this["_valueArray"](arguments, variables.length);
-			for (var i = 0; i < variables.length; ++i) {
-				funcScope[variables[i]] = args[i];
-			}
-			if (arguments.callee["label"] != null) {
-				funcScope[arguments.callee["label"]] = arguments.callee;
-			}
 
-			return funcScope._value(expression);
-		};
-		func.toString = function() {
-			return "\u03bb"+stringify(variables)+stringify(expression);
-		};
-		return func;
-	};
-	
-	Environment.prototype["export"] = function(lambda) {
-		var scope = this;
-		return function() {
-			return scope._value(lambda).apply(scope, arguments);
-		};
-	};
-	
-	Environment.prototype["label"] = function(l, f) {
-		var func = this["_value"](f);
-		func["label"] = l;
-		return func;
-	};
-	
 	function wrapJsResult(jsResult) {
 		if (typeof(jsResult) == 'boolean') {
 			if (jsResult) {
@@ -200,253 +90,529 @@ var Environment = (function() {
 		}
 		return jsResult;
 	}
+
+	var globalScope = null;
+
+	function Environment() {
+		globalScope = this;
+	}
 	
-	Environment.prototype["js"] = function() {
-		var val = this["_value"](arguments[0]);
-		var result = eval(val);
-		if (typeof(result) == 'function') {
-			return function() {
-				var jsResult = result.apply(bind, this["_valueArray"](arguments));
-				return wrapJsResult(jsResult);
-			};
-		}
-		return result;
+	Environment.prototype["quote"] = function(a, callback) {
+		callback(a);
 	};
 	
- 	Environment.prototype["method"] = function(obj, property) {
- 		var val = this["_value"](obj);
- 		property = this["_value"](property);
- 		if (property instanceof Atom) {
- 			property = property.name;
- 		}
- 		var func = val[property];
- 		// some weird stuff happens with native functions in IE
- 		if (typeof(func) == 'object' && typeof(window.alert) == 'object') {
- 			func = function(a, b, c, d, e, f, g, h, i) {
- 				return val[property](a, b, c, d, e, f, g, h, i);
- 			};
- 		}
- 		if (typeof(func) != "function") {
- 			throw new Error("Method "+property+" not found on object "+val);
- 		}
- 		return function() {
- 			var args = this["_valueArray"](arguments);
- 			var jsResult = func.apply(val, args);
- 			return wrapJsResult(jsResult);
- 		};
+	Environment.prototype["car"] = function(args, callback) {
+		this["_value"](args, function(item) {
+			if (typeof(item) == 'string') {
+				callback(item.substring(0, 1));
+			} else {
+				callback(item[0]);
+			}
+		});
+	};
+	
+	
+	Environment.prototype["cdr"] = function(args, callback) {
+		this["_value"](args, function(args) {
+			var val = args.slice();
+			if (val.substring) {
+				callback(val.substring(1));
+			} else {
+				val.shift();
+				callback(val);
+			}
+		});
+	},
+	
+	Environment.prototype["equal"] = function(a, b) {
+		this["_evalBinaryOp"](
+			a, b, function(a, b) { return equal(a, b) ? "t" : Nil; }, callback);
+	};
+	
+	Environment.prototype["cons"] = function(a, b, callback) {
+		var that = this;
+		this["_value"](a, function(a) {
+			that["_value"](b, function(b) {
+				if (typeof(a) == 'string' && typeof(b) == 'string') {
+					callback(a+b);
+				} else {
+					b = b.slice();
+					b.unshift(a);
+					callback(b);
+				}
+			});
+		});
+	};
+	
+	Environment.prototype["concat"] = function(/* arguments */) {
+		var args = Array.prototype.slice.call(arguments);
+		var callback = args.pop();
+		this["_valueArray"](args, function(args) {
+		  var result = args.shift();
+		  if (result instanceof Array) {
+			  callback(Array.prototype.concat.apply(result, args));
+		  } else {
+			  callback(result + args.join(""));
+		  }
+		});
+	};
+	
+	Environment.prototype["atom"] = function(a, callback) {
+		this["_value"](a, function(a) {
+			callback(bool( a instanceof Atom ));
+		});
+	};
+	
+	Environment.prototype["cond"] = function(callback) {
+		var args = Array.prototype.slice.call(arguments);
+		var callback = args.pop();
+		if (args.length > 0) {
+			var eval_index = 0;
+			var that = this;
+			var condHelper = function(elem) {
+				eval_index++;
+				if (eval_index > args.length) {
+					callback(Nil);
+				} else if (!equal(condition, Nil)) {
+					that["_value"](args[eval_index - 1][1], callback);
+				} else {
+					that["_value"](args[eval_index], andHelper);
+				}
+			};
+			this["_value"](args[eval_index][0], condHelper);
+		} else {
+			callback(Nil);
+		}
+	};
+	
+	Environment.prototype["lambda"] = function(variables, expression, callback) {
+		// scope when function is defined
+		var defScopeNonGlobals = {};
+		addNonGlobalsFromScope(defScopeNonGlobals, this);
+
+		var that = this;
+		var func = function(/* arguments */) {
+			var args = Array.prototype.slice.apply(arguments);
+			var inner_callback = args.pop();
+			// scope when function is called
+			var funcScope = newScope(this);
+			
+			// add all nonglobal values into this funcscope
+			mergeScope(funcScope, defScopeNonGlobals);
+			
+			that["_valueArray"](args, variables.length, function(args) {
+				for (var i = 0; i < variables.length; ++i) {
+					funcScope[variables[i]] = args[i];
+				}
+				if (arguments.callee["label"] != null) {
+					funcScope[arguments.callee["label"]] = arguments.callee;
+				}
+
+				funcScope._value(expression, inner_callback);
+			});
+		};
+		func.toString = function() {
+			return LAMBDA_SIGN + stringify(variables)+stringify(expression);
+		};
+		callback(func);
+	};
+	
+	Environment.prototype["export"] = function(lambda, callback) {
+		var scope = this;
+		callback(function(/* arguments */) {
+			var args = arguments;
+			scope["_value"](lambda, function(func) {
+			  lambda.apply(scope, args);
+			});
+		});
+	};
+	
+	Environment.prototype["label"] = function(label, func, callback) {
+		this["_value"](func, function(func) {
+			func["label"] = label;
+			callback(func);
+		});
+	};
+	
+	Environment.prototype["js"] = function(js_expr, callback) {
+		var that = this;
+		this["_value"](js_expr, function(val) {
+			var result = eval(val);
+			if (typeof(result) == 'function') {
+				callback(function(/* arguments */) {
+					var args = Array.prototype.slice.apply(arguments);
+					var inner_callback = args.pop();
+					that["_valueArray"](args, function(args) {
+						var jsResult = func.apply(val, args);
+						inner_callback(wrapJsResult(jsResult));
+					});
+				});
+			} else {
+				callback(result);
+			}
+		});
+	};
+	
+ 	Environment.prototype["method"] = function(obj, property, callback) {
+		var that = this;
+		this["_value"](obj, function(val) {
+			that["_value"](property, function(property) {
+				if (property instanceof Atom) {
+					property = property.name;
+				}
+				var func = val[property];
+				// some weird stuff happens with native functions in IE
+				if (typeof(func) == 'object' && typeof(window.alert) == 'object') {
+					func = function(a, b, c, d, e, f, g, h, i) {
+						return val[property](a, b, c, d, e, f, g, h, i);
+					};
+				}
+				if (typeof(func) != "function") {
+					that["_error"]("Method "+property+" not found on object "+val);
+				}
+				callback(function(/* arguments */) {
+					var args = Array.prototype.slice.apply(arguments);
+					var inner_callback = args.pop();
+					that["_valueArray"](args, function(args) {
+						var jsResult = func.apply(val, args);
+						inner_callback(wrapJsResult(jsResult));
+					});
+				});
+			});
+		});
  	};
  	
-	Environment.prototype["let"] = function(bindings, expression) {
-		var oldScope = this;
+	Environment.prototype["let"] = function(bindings, expression, callback) {
 		var letScope = newScope(this);
-		for (var i = 0; i < bindings.length; ++i) {
-			var binding = bindings[i];
-			var name = binding[0];
-			var value = oldScope._value(binding[1]);
-			letScope[name] = value;
+		var binds_count = bindings.length;
+		var bind_names = [];
+		var bind_expressions = [];
+		for (var i = 0; i < binds_count; ++i) {
+			bind_names.push(bindings[0]);
+			bind_expressions.push(bindings[1]);
 		}
-		return letScope._value(expression);
+		this["_valueArray"](bind_expressions, function(bind_expressions) {
+			for (var i = 0; i < binds_count; ++i) {
+				letScope[bind_names[i]] = bind_expressions[i];
+			}
+			letScope["_value"](expression, callback);
+		});
 	};
 	
-	Environment.prototype["let*"] = function(bindings, expression) {
+	Environment.prototype["let*"] = function(bindings, expression, callback) {
 		var letScope = newScope(this);
-		for (var i = 0; i < bindings.length; ++i) {
-			var binding = bindings[i];
-			var name = binding[0];
-			var value = letScope._value(binding[1]);
-			letScope[name] = value;
+		var binds_count = bindings.length;
+		var bind_names = [];
+		var bind_expressions = [];
+		for (var i = 0; i < binds_count; ++i) {
+			bind_names.push(bindings[0]);
+			bind_expressions.push(bindings[1]);
 		}
-		return letScope._value(expression);
+		letScope["_valueArray"](bind_expressions, function(bind_expressions) {
+			for (var i = 0; i < binds_count; ++i) {
+				letScope[bind_names[i]] = bind_expressions[i];
+			}
+			letScope["_value"](expression, callback);
+		});
 	};
 	
-	Environment.prototype["defun"] = function(name, variables, expression) {
-		var func = this["lambda"](variables, expression);
-		globalScope[name] = func;
-		return func;
+	Environment.prototype["defun"] = function(name, variables, expression, callback) {
+		this["lambda"](variables, expression, function(func) {
+			globalScope[name] = func;
+			callback(func);
+		});
 	};
 	
-	Environment.prototype["def"] = function(name, value) {
-		globalScope[name] = this["_value"](value);
-		return value;
+	Environment.prototype["def"] = function(name, value, callback) {
+		this["_value"](value, function(value) {
+			globalScope[name] = value;
+			callback(value);
+		});
 	};
 	
-	Environment.prototype["def-dyn"] = function(name, value) {
-		return this["def"](this["_value"](name), value);
+	Environment.prototype["def-dyn"] = function(name, value, callback) {
+		var that = this;
+		this["_value"](name, function(name) {
+			that["def"](name, value, callback);
+		});
 	};
 	
-	Environment.prototype["plus"] = function() {
-		var result = 0;
-		for (var i = 0; i < arguments.length; ++i) {
-			result += this["_value"](arguments[i]);
-		}
-		return result;
+	Environment.prototype["plus"] = function(/* arguments */) {
+		var args = Array.prototype.slice.call(arguments);
+		var callback = args.pop();
+		this["_valueArray"](args, function(args) {
+			var result = args[0];
+			for (var i = 1; i < args.length; ++i) {
+				result += args[i];
+			}
+			callback(result);
+		});
 	};
 	
-	Environment.prototype["minus"] = function() {
-		if (arguments.length == 1)  {
-			return - this["_value"](arguments[0]);
-		}
-		var result = this["_value"](arguments[0]);
-		for (var i = 1; i < arguments.length; ++i) {
-			result -= this["_value"](arguments[i]);
-		}
-		return result;
+	Environment.prototype["minus"] = function(/* arguments */) {
+		var args = Array.prototype.slice.call(arguments);
+		var callback = args.pop();
+		this["_valueArray"](args, function(args) {
+			if (args.length == 1)  {
+				callback(-args[0]);
+			} else {
+				var result = args[0];
+				for (var i = 1; i < args.length; ++i) {
+					result -= args[i];
+				}
+				callback(result);
+			}
+		});
 	};
 	
-	Environment.prototype["divide"] = function() {
-		var result = this["_value"](arguments[0]);
-		for (var i = 1; i < arguments.length; ++i) {
-			result = result / this["_value"](arguments[i]);
-		}
-		return result;
+	Environment.prototype["divide"] = function(/* arguments */) {
+		var args = Array.prototype.slice.call(arguments);
+		var callback = args.pop();
+		this["_valueArray"](args, function(args) {
+			var result = args[0];
+			for (var i = 1; i < args.length; ++i) {
+				result /= args[i];
+			}
+			callback(result);
+		});
 	};
 	
-	Environment.prototype["times"] = function() {
-		var result = this["_value"](arguments[0]);
-		for (var i = 1; i < arguments.length; ++i) {
-			result *= this["_value"](arguments[i]);
-		}
-		return result;
+	Environment.prototype["times"] = function(/* arguments */) {
+		var args = Array.prototype.slice.call(arguments);
+		var callback = args.pop();
+		this["_valueArray"](args, function(args) {
+			var result = args[0];
+			for (var i = 1; i < args.length; ++i) {
+				result *= args[i];
+			}
+			callback(result);
+		});
 	};
 	
-	Environment.prototype["rem"] = function(a, b) {
-		return this["_value"](a) % this["_value"](b);
+	Environment.prototype["rem"] = function(a, b, callback) {
+		this["_evalBinaryOp"](a, b, function(a, b) { return a % b; }, callback);
 	};
 
-	Environment.prototype["if"] = function(conditional, truePath, falsePath) {
-		if (equal(this["_value"](conditional), Nil) == false) {
-			return this["_value"](truePath);
-		} else if (falsePath != null) {
-			return this["_value"](falsePath);
-		}
-		return Nil;
-	};
-	
-	Environment.prototype["<"] = function(a, b) {
-		return bool( this["_value"](a) < this["_value"](b) );
-	};
-	
-	Environment.prototype[">"] = function(a, b) {
-		return bool( this["_value"](a) > this["_value"](b) );
-	};
-	
-	Environment.prototype["/="] = function(a, b) {
-		return bool( equal(this["_value"](a), this["_value"](b)) == false );
-	};
-	
-	Environment.prototype[">="] = function(a, b) {
-		return bool( this["_value"](a) >= this["_value"](b) );
-	};
-	
-	Environment.prototype["<="] = function(a, b) {
-		return bool( this["_value"](a) <= this["_value"](b) );
-	};
-	
-	Environment.prototype["not"] = function(a) {
-		return bool( equal(this["_value"](a), Nil) );
-	};
-	
-	Environment.prototype["or"] = function() {
-		for (var i = 0; i < arguments.length; ++i) {
-			var val = this["_value"](arguments[i]);
-			if (equal(val, Nil) == false) {
-				return val;
+	Environment.prototype["if"] = function(conditional, truePath, falsePath, callback) {
+		var that = this;
+		this["_value"](conditional, function(conditional) {
+			if (equal(conditional, Nil) == false) {
+				that["_value"](truePath, callback);
+			} else if (falsePath != null) {
+				that["_value"](falsePath, callback);
+			} else {
+				callback(Nil);
 			}
-		}
-		return Nil;
+		});
 	};
 	
-	Environment.prototype["and"] = function() {
-		for (var i = 0; i < arguments.length; ++i) {
-			var val = this["_value"](arguments[i]);
-			if (equal(val, Nil)) {
-				return Nil;
+	Environment.prototype["<"] = function(a, b, callback) {
+		this["_evalBinaryOp"](a, b, function(a, b) { return bool(a < b); }, callback);
+	};
+	
+	Environment.prototype[">"] = function(a, b, callback) {
+		this["_evalBinaryOp"](a, b, function(a, b) { return bool(a > b); }, callback);
+	};
+	
+	Environment.prototype["/="] = function(a, b, callback) {
+		this["_evalBinaryOp"](a, b, function(a, b) { return !equal(a, b); }, callback);
+	};
+	
+	Environment.prototype[">="] = function(a, b, callback) {
+		this["_evalBinaryOp"](a, b, function(a, b) { return bool(a >= b); }, callback);
+	};
+	
+	Environment.prototype["<="] = function(a, b, callback) {
+		this["_evalBinaryOp"](a, b, function(a, b) { return bool(a <= b); }, callback);
+	};
+	
+	Environment.prototype["not"] = function(a, callback) {
+		this["_value"](a, function(a) {
+			callback(bool(a, Nil));
+		});
+	};
+	
+	Environment.prototype["or"] = function(/* arguments */) {
+		var args = Array.prototype.slice.call(arguments);
+		var callback = args.pop();
+		if (args.length > 0) {
+			var eval_index = 0;
+			var that = this;
+			var andHelper = function(elem) {
+				eval_index++;
+				if (eval_index > args.length) {
+					callback(Nil);
+				} else if (!equal(elem, Nil)) {
+					callback(elem);
+				} else {
+					that["_value"](args[eval_index], andHelper);
+				}
+			};
+			this["_value"](args[eval_index], andHelper);
+		} else {
+			callback(Nil);
+		}
+	};
+	
+	Environment.prototype["and"] = function(/* arguments */) {
+		var args = Array.prototype.slice.call(arguments);
+		var callback = args.pop();
+		if (args.length > 0) {
+			var eval_index = 0;
+			var that = this;
+			var andHelper = function(elem) {
+				eval_index++;
+				if (eval_index > args.length) {
+					callback("t");
+				} else if (equal(elem, Nil)) {
+					callback(Nil);
+				} else {
+					that["_value"](args[eval_index], andHelper);
+				}
 			}
+			this["_value"](args[eval_index], andHelper);
+		} else {
+			callback("t");
 		}
-		return "t";
 	};
 	
-	Environment.prototype["nth"] = function(n, l) {
-		return this["_value"](l)[this["_value"](n)];
+	Environment.prototype["nth"] = function(n, l, callback) {
+		var that = this;
+		this["_value"](l, function(l) {
+			that["_value"](n, function(n) {
+				callback([n]);
+			});
+		});
 	};
 	
-	Environment.prototype["consp"] = function(a) {
-		var val = this["_value"](a);
-		return bool( val instanceof Array && val.length > 0 ); 
+	Environment.prototype["consp"] = function(a, callback) {
+		this["_value"](a, function(val) {
+			callback(bool( val instanceof Array && val.length > 0 ));
+		});
 	};
 	
-	Environment.prototype["length"] = function(l) {
-		return this["_value"](l).length;
+	Environment.prototype["length"] = function(l, callback) {
+		this["_value"](l, function(l) {
+			callback(l.length);
+		});
 	};
 	
-	Environment.prototype["list"] = function() {
-		return this["_valueArray"](arguments);
+	Environment.prototype["list"] = function(callback) {
+		this["_valueArray"](arguments, callback);
 	};
 	
- 	Environment.prototype["get"] = function(obj, property) {
- 		var val = this["_value"](obj);
- 		if (property instanceof Atom) {
- 			property = property.name;
- 		}
- 		return val[property];
+ 	Environment.prototype["get"] = function(obj, property, callback) {
+		this["_value"](obj, function(val) {
+		  if (property instanceof Atom) {
+			  property = property.name;
+		  }
+		  callback(val[property]);
+		});
  	};
  	
- 	Environment.prototype["substring"] = function(string, start, end) {
- 		return this["_value"](string).substring(this["_value"](start), this["_value"](end));
+ 	Environment.prototype["substring"] = function(string, start, end, callback) {
+		var that = this;
+		this["_value"](string, function(string) {
+			that["_value"](start, function(start) {
+				that["_value"](end, function(end) {
+					callback(string.substring(start, end));
+				});
+			});
+		});
  	};
 	
- 	Environment.prototype["set"] = function(obj, property, value) {
- 		var obj = this["_value"](obj);
- 		var val = this["_value"](value);
- 		if (property instanceof Atom) {
- 			property = property.name;
- 		}
- 		obj[property] = val;
- 		return obj;
+ 	Environment.prototype["set"] = function(obj, property, value, callback) {
+		var that = this;
+		this["_value"](obj, function(obj) {
+			that["_value"](value, function(val) {
+				if (property instanceof Atom) {
+					property = property.name;
+				}
+				obj[property] = val;
+				callback(obj);
+			});
+		});
  	};
 
  	Environment.prototype["t"] = "t";
 	Environment.prototype["Nil"] = Nil;
 
-	Environment.prototype["_value"] = function(e) {
+	Environment.prototype["_value"] = function(e, callback) {
 		if (e instanceof UnevaluatedObj) {
 			var object = new Object();
 			for (var key in e) {
 				object[key] = this["_value"](e[key]); 
 			}
-			return object;
+			callback(object);
 		} else if (e instanceof Array) {
 			var data = e.slice();
 			var head = data.shift();
-			var headFunc = this["_value"](head);
-			if (typeof(headFunc) == 'function') {
-				var result = headFunc.apply(this, data);
-				if (result == null) {
-					result = Nil;
-				}
-				return result;
-			}
-			throw new Error(head+" ("+headFunc+") not a function in environment when trying to evaluate "+e);
+			var that = this;
+			this["_value"](head, function(headFunc) {
+			  if (typeof(headFunc) == 'function') {
+				  data.push(callback);
+				  headFunc.apply(that, data);
+			  } else {
+				that["_error"](head + " ("+headFunc+") not a function in environment when trying to evaluate "+e);
+			  }
+			});
 		} else if (e instanceof Atom) {
 			if (this[e.name] != null) {
-				return this[e.name];
+				callback(this[e.name]);
+			} else {
+				callback(e);
 			}
-			return e;
 		} else {
-			return e;
+			callback(e);
 		}
 	};
 	
-	Environment.prototype["_valueArray"] = function(arr, maxitems) {
-		if (!maxitems) {
+	Environment.prototype["_valueArray"] = function(arr, maxitems, callback) {
+		if (callback === undefined && maxitems !== undefined) {
+		  callback = maxitems;
+		  maxitems = undefined;
+		}
+		if (maxitems === undefined) {
 			maxitems = arr.length;
 		}
 		var result = Array.prototype.slice.call(arr, 0, maxitems);
-		for (var i = 0; i < result.length; ++i) {
-			result[i] = this["_value"](result[i]);
+		var eval_index = 0;
+		if (result.length > 0) {
+			var that = this;
+			var evalElement = function(elem) {
+				result[eval_index++] = elem;
+				if (eval_index == result.length) {
+					callback(result);
+				} else {
+					that["_value"](result[eval_index], evalElement);
+				}
+			};
+			this["_value"](result[eval_index], evalElement);
+		} else {
+			callback([]);
 		}
-		return result;
 	};
+
+	Environment.prototype["_evalBinaryOp"] = function(a, b, op, callback) {
+		var that = this;
+		this["_value"](a, function(a) {
+			that["_value"](b, function(b) {
+				callback(op(a, b));
+			});
+		});
+	};
+
+	Environment.prototype["_error"] = function(message/* no callback*/) {
+	  console.error('Javathcript Error: ' + message);
+	};
+
+	for (prop in Environment.prototype) {
+	  if (Environment.prototype[prop] instanceof Function) {
+		Environment.prototype[prop].toString = function() {
+		  return '{library macro}';
+		};
+	  }
+	}
 	
 	Environment.stringify = stringify;
 	
