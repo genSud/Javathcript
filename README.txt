@@ -13,4 +13,4 @@ with these script tags:
 	<script type="text/javascript" src="../source/Javathcript.js"></script>
 	<script type="text/javascript" src="../source/DocumentEvaluator.js"></script>
 
-You can build a new Javathcript.js file by running the build.sh script inside the build folder.
+You can build a new Javathcript.js file by running make in the root folder.

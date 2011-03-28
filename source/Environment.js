@@ -239,14 +239,18 @@ var Environment = (function() {
 		this["_value"](js_expr, function(val) {
 			var result = eval(val);
 			if (typeof(result) == 'function') {
-				callback(function(/* arguments */) {
+				var wrappedFunction = function(/* arguments */) {
 					var args = Array.prototype.slice.apply(arguments);
 					var inner_callback = args.pop();
 					that["_valueArray"](args, function(args) {
-						var jsResult = func.apply(val, args);
+						var jsResult = result.apply(null, args);
 						inner_callback(wrapJsResult(jsResult));
 					});
-				});
+				};
+                wrappedFunction.toString = function() {
+                    return result.toString();
+                };
+                callback(wrappedFunction);
 			} else {
 				callback(result);
 			}
@@ -549,12 +553,12 @@ var Environment = (function() {
 			var head = data.shift();
 			var that = this;
 			this["_value"](head, function(headFunc) {
-			  if (typeof(headFunc) == 'function') {
-				  data.push(callback);
-				  headFunc.apply(that, data);
-			  } else {
-				that["_error"](head + " ("+headFunc+") not a function in environment when trying to evaluate "+e);
-			  }
+				if (typeof(headFunc) == 'function') {
+					data.push(callback);
+					headFunc.apply(that, data);
+				} else {
+					that["_error"]("'"+headFunc+"' not a function in environment when trying to evaluate "+stringify(e));
+				}
 			});
 		} else if (e instanceof Atom) {
 			if (this[e.name] != null) {
