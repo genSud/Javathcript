@@ -1,13 +1,13 @@
-function JavathcriptTokenizer(s) {
-  Tokenizer.call(this, s);
+Javathcript.Tokenizer = function(s) {
+  Javathcript.BPWJs.Tokenizer.call(this, s);
   this.CLASS = "JavathcriptTokenizer";
-}
+};
 
-Util.extend(JavathcriptTokenizer, Tokenizer);
+Javathcript.BPWJs.Util.extend(Javathcript.Tokenizer, Javathcript.BPWJs.Tokenizer);
 
-JavathcriptTokenizer.prototype.initialCharacterState = function() {
+Javathcript.Tokenizer.prototype.initialCharacterState = function() {
   this.wordState.setWordChars(".+*-<>=", true);
-  this.commentState = new SlashSlashState();
+  this.commentState = new Javathcript.BPWJs.SlashSlashState();
   this.setCharacterState(0, 255, this.wordState);
   this.setCharacterState(0,   ' ', this.whitespaceState);
   this.setCharacterState(",", this.whitespaceState);

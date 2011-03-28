@@ -1,4 +1,4 @@
-var Environment = (function() {
+Javathcript.Environment = (function() {
   var LAMBDA_SIGN = "\u03bb";
   var Nil = [];
 
@@ -28,9 +28,9 @@ var Environment = (function() {
 
   function equal(a, b) {
     // three types, list, atom, string, number
-    if (a instanceof Atom) {
-      return b instanceof Atom && a.name == b.name;
-    } else if (b instanceof Atom) {
+    if (a instanceof Javathcript.Atom) {
+      return b instanceof Javathcript.Atom && a.name == b.name;
+    } else if (b instanceof Javathcript.Atom) {
       return false;
     }
 
@@ -159,7 +159,7 @@ var Environment = (function() {
 
   Environment.prototype["atom"] = function(a, callback) {
     this["_value"](a, function(a) {
-      callback(bool( a instanceof Atom ));
+      callback(bool( a instanceof Javathcript.Atom ));
     });
   };
 
@@ -261,7 +261,7 @@ var Environment = (function() {
     var that = this;
     this["_value"](obj, function(val) {
       that["_value"](property, function(property) {
-        if (property instanceof Atom) {
+        if (property instanceof Javathcript.Atom) {
           property = property.name;
         }
         var func = val[property];
@@ -507,7 +507,7 @@ var Environment = (function() {
 
   Environment.prototype["get"] = function(obj, property, callback) {
     this["_value"](obj, function(val) {
-      if (property instanceof Atom) {
+      if (property instanceof Javathcript.Atom) {
         property = property.name;
       }
       callback(val[property]);
@@ -529,7 +529,7 @@ var Environment = (function() {
     var that = this;
     this["_value"](obj, function(obj) {
       that["_value"](value, function(val) {
-        if (property instanceof Atom) {
+        if (property instanceof Javathcript.Atom) {
           property = property.name;
         }
         obj[property] = val;
@@ -542,7 +542,7 @@ var Environment = (function() {
   Environment.prototype["Nil"] = Nil;
 
   Environment.prototype["_value"] = function(e, callback) {
-    if (e instanceof UnevaluatedObj) {
+    if (e instanceof Javathcript.UnevaluatedObj) {
       var object = new Object();
       for (var key in e) {
         object[key] = this["_value"](e[key]);
@@ -560,7 +560,7 @@ var Environment = (function() {
           that["_error"]("'"+headFunc+"' not a function in environment when trying to evaluate "+stringify(e));
         }
       });
-    } else if (e instanceof Atom) {
+    } else if (e instanceof Javathcript.Atom) {
       if (this[e.name] != null) {
         callback(this[e.name]);
       } else {
@@ -610,6 +610,8 @@ var Environment = (function() {
     console.error('Javathcript Error: ' + message);
   };
 
+  Environment.prototype["_stringify"] = stringify;
+
   for (prop in Environment.prototype) {
     if (Environment.prototype[prop] instanceof Function) {
     Environment.prototype[prop].toString = function() {
@@ -617,8 +619,6 @@ var Environment = (function() {
     };
     }
   }
-
-  Environment.stringify = stringify;
 
   return Environment;
 })();

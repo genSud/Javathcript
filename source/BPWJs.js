@@ -8,6 +8,8 @@
 * the reader wished, as long as they do not claim that they wrote it.
 *
 */
+Javathcript.BPWJs = (function() {
+
 var Util = function () {
   function Util() {}
   Util.prototype.extend = function (subclass, superclass) {
@@ -1126,3 +1128,40 @@ Symbol.prototype.qualifies = function qualifies(o) {
 Symbol.prototype.unvisitedString = function unvisitedString(visited) {
   return this.symbol.toString()
 };
+
+return {
+  Util: Util,
+  Arrays: Arrays,
+  PushbackReader: PushbackReader,
+  Assembly: Assembly,
+  Parser: Parser,
+  Repetition: Repetition,
+  Terminal: Terminal,
+  CollectionParser: CollectionParser,
+  Alternation: Alternation,
+  Sequence: Sequence,
+  Track: Track,
+  Empty: Empty,
+  Assembler: Assembler,
+  grammarRule: grammarRule,
+  Num: Num,
+  NumberState: NumberState,
+  QuoteState: QuoteState,
+  SlashSlashState: SlashSlashState,
+  SlashStarState: SlashStarState,
+  SlashState: SlashState,
+  SymbolNode: SymbolNode,
+  SymbolRootNode: SymbolRootNode,
+  SymbolState: SymbolState,
+  Token: Token,
+  TokenAssembly: TokenAssembly,
+  Tokenizer: Tokenizer,
+  TokenString: TokenString,
+  WhitespaceState: WhitespaceState,
+  WordState: WordState,
+  Word: Word,
+  QuotedString: QuotedString,
+  Symbol: Symbol
+};
+
+})();

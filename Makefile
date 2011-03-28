@@ -1,7 +1,6 @@
 FILES = \
   source/BPWJs.js \
-  source/Atom.js \
-  source/UnevaluatedObj.js \
+  source/Base.js \
   source/JavathcriptTokenizer.js \
   source/JavathcriptParser.js \
   source/Environment.js \
